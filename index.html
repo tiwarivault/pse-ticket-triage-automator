@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Partner Success Triage Copilot</title>
+<meta name="description" content="Automate a payments support engineer's day: paste the day's failed orders and get a money-weighted priority queue (P1/P2/P3), spike/outage detection, per-merchant impact, and drafted merchant replies, PSP escalation notes and internal tickets — or triage a single ticket." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://tiwarivault.github.io/pse-ticket-triage-automator/" />
+<meta property="og:title" content="Partner Success Triage Copilot" />
+<meta property="og:description" content="Paste the day's failed orders → money-weighted P1/P2/P3 queue, spike/outage detection, per-merchant impact, and auto-drafted merchant replies + PSP escalation notes + internal tickets. 100% client-side." />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Partner Success Triage Copilot" />
+<meta name="twitter:description" content="Prioritised payment-support triage with spike detection and auto-drafted replies, escalations and tickets." />
+<style>
+  :root{--bg:#0f1220;--card:#171a2b;--muted:#9aa3b2;--text:#e9ecf3;--accent:#5b8cff;--ok:#22c55e;--border:#262b40;--chip:#1e2238;--danger:#ef4444;--warn:#fbbf24;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+  .wrap{max-width:940px;margin:0 auto;padding:24px 16px 60px}
+  header h1{font-size:25px;margin:0 0 4px}
+  header p{color:var(--muted);margin:0 0 16px}
+  .badge{display:inline-block;background:var(--chip);color:var(--muted);font-size:12px;padding:3px 10px;border-radius:999px;margin-right:6px;margin-bottom:4px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+  textarea,input[type=file],select,input[type=password],input[type=text]{width:100%;background:#0e1120;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit}
+  textarea{min-height:70px;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.row>button{flex:0 0 auto}
+  button{cursor:pointer;border:none;border-radius:10px;padding:10px 16px;font-size:15px;font-weight:600}
+  .btn-primary{background:var(--accent);color:#fff}.btn-ghost{background:var(--chip);color:var(--text);border:1px solid var(--border)}
+  .btn-ai{background:linear-gradient(90deg,#7c3aed,#5b8cff);color:#fff}
+  .pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;margin:0 6px 6px 0}
+  .pill.cust{background:#13351f;color:#4ade80}.pill.merch{background:#3a2a12;color:#fbbf24}.pill.psp{background:#2a1d3f;color:#c084fc}.pill.unknown{background:#3a1515;color:#f87171}
+  .p1{background:#3a1515;color:#f87171}.p2{background:#3a2a12;color:#fbbf24}.p3{background:#1e2238;color:#9aa3b2}
+  .tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;background:#0e1120;border:1px solid var(--border);color:var(--muted);margin:0 6px 6px 0}
+  .kv b{color:var(--muted);font-weight:600;display:block;font-size:12px;text-transform:uppercase;letter-spacing:.03em;margin-top:10px}
+  .reply{background:#0e1120;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:12px 14px;margin-top:8px;white-space:pre-wrap;font-size:13.5px}
+  .tiles{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 14px}
+  .tile{flex:1;min-width:120px;background:#0e1120;border:1px solid var(--border);border-radius:12px;padding:14px}
+  .tile .n{font-size:23px;font-weight:700}.tile .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .tile.red .n{color:var(--danger)}.tile.amber .n{color:var(--warn)}.tile.green .n{color:var(--ok)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  td.num,th.num{text-align:right}
+  .alert{background:#2a1512;border:1px solid #5a2a1a;border-radius:10px;padding:11px 14px;margin:0 0 12px;font-size:14px}.alert b{color:var(--warn)}
+  .bucket{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px}
+  .bucket.do{border-left:4px solid var(--danger)}.bucket.esc{border-left:4px solid var(--warn)}.bucket.inform{border-left:4px solid var(--ok)}
+  .bucket h4{margin:0 0 6px;font-size:14px}.bucket ul{margin:0;padding-left:18px}.bucket li{margin:4px 0;font-size:14px}
+  .muted{color:var(--muted)}.small{font-size:13px}
+  details summary{cursor:pointer;color:var(--accent);font-size:14px;margin-top:6px}
+  .art{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .art span{cursor:pointer;background:var(--chip);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:5px 11px;border-radius:999px}
+  .art span.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .ai-box{white-space:pre-wrap;background:#0e1120;border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:10px}
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px;margin-right:6px}@keyframes spin{to{transform:rotate(360deg)}}
+  .copybtn{background:var(--chip);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:5px 10px;border-radius:8px;margin-top:8px;font-weight:600}
+  .err{color:var(--danger);font-size:13px;margin-top:8px}.hint{color:var(--muted);font-size:12px;margin-top:6px}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin-top:30px}a{color:var(--accent)}
+  h3{margin:4px 0 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎫 Partner Success Triage Copilot</h1>
+    <p>The daily payments-support grind, automated end-to-end. Paste the day's failed orders → a <b>money-weighted priority queue (P1/P2/P3)</b>, <b>spike / outage detection</b>, <b>per-merchant impact</b>, and auto-drafted <b>merchant replies, PSP escalation notes and internal tickets</b> for every actionable cluster. Or triage a single ticket.</p>
+    <span class="badge">Priority queue</span><span class="badge">Spike / outage detection</span><span class="badge">₹ at risk</span><span class="badge">Drafts: reply · escalation · ticket</span><span class="badge">+ AI (Claude)</span>
+  </header>
+
+  <div class="card">
+    <h3>Triage one ticket</h3>
+    <label for="q">Paste the error / failure reason / symptom (and order id if you have it)</label>
+    <textarea id="q" placeholder="e.g. 'Order NIM123 keeps failing — Do not honour on Card' or 'signature mismatch' or 'webhook not received'"></textarea>
+    <div class="row">
+      <button class="btn-primary" onclick="triageOne()">Classify &amp; draft</button>
+      <button class="btn-ghost" onclick="exOne()">Example</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Triage the day's failed orders</h3>
+    <label>Upload failed-orders CSV (reason/status + optional order_id, merchant, amount, timestamp)</label>
+    <input type="file" id="file" accept=".csv,text/csv" onchange="loadFile(event)" />
+    <div class="row">
+      <button class="btn-ghost" onclick="loadSample()">Load sample day</button>
+      <button class="btn-ghost" onclick="clearBatch()">Clear</button>
+    </div>
+    <details style="margin-top:10px"><summary>…or paste CSV</summary>
+      <textarea id="paste" style="margin-top:8px" placeholder="order_id,merchant,amount,failure_reason,created_at"></textarea>
+      <button class="btn-ghost" style="margin-top:8px" onclick="loadPaste()">Triage pasted CSV</button>
+    </details>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="card">
+    <details>
+      <summary>⚙️ AI mode settings (optional — use your own Claude API key)</summary>
+      <div style="margin-top:12px">
+        <label for="key">Anthropic API key (stored only in your browser)</label>
+        <input type="password" id="key" placeholder="sk-ant-..." oninput="saveKey()" />
+        <label for="model">Model</label>
+        <input type="text" id="model" value="claude-haiku-5-5" />
+        <p class="small muted" style="margin-top:8px">The key stays in your browser and is sent only to Anthropic. AI calls send the issue text / triage summary — never credentials.</p>
+      </div>
+    </details>
+  </div>
+
+  <footer>Built by <b>Prashant Tiwari</b> · Payments + AI · runs entirely client-side — nothing is uploaded</footer>
+</div>
+
+<script>
+/* ========== KNOWLEDGE ========== */
+const SIDE={cust:'Customer-side',merch:'Merchant / Integration-side',psp:'Bank / PSP-side'};
+const ESC_LABEL={do:'Action now',psp:'Escalate to PSP',merchant:'Merchant to fix',inform:'Inform merchant/customer'};
+const SEVW={high:3,med:2,low:1};
+const KB=[
+  {k:['insufficient funds','51','low balance'],title:'Insufficient Funds',side:'cust',esc:'inform',sev:'low',
+   cause:"The customer's card/account did not have enough balance.",
+   action:"No merchant/gateway action. Customer retries with funds or another method.",
+   reply:"This payment was declined by the customer's bank for insufficient funds. Please ask the customer to retry with an alternate card/method or once funds are available. Nothing is pending on our side."},
+  {k:['do not honour','do not honor','dnh','05'],title:'Do Not Honour',side:'psp',esc:'inform',sev:'med',
+   cause:"A blanket decline from the issuing bank (risk/limit/policy) with no specific reason.",
+   action:"Bank-side; customer retries with another card or contacts their bank. Watch for spikes on one BIN/network.",
+   reply:"This transaction was declined by the customer's issuing bank (\"Do not honour\"). It's a bank-side decision; please ask the customer to retry with a different card. If you see it across many customers, tell us and we'll review routing with the PSP."},
+  {k:['3ds','3d secure','otp','authentication failed'],title:'3DS / OTP Authentication Failed',side:'cust',esc:'inform',sev:'low',
+   cause:"The card's OTP/3D-Secure step failed, was abandoned or timed out.",
+   action:"Customer-side; retry and complete OTP promptly. Check issuer ACS if widespread.",
+   reply:"The payment failed at the OTP / 3D-Secure step. Please ask the customer to retry and complete the OTP promptly without closing the page."},
+  {k:['invalid vpa','vpa','collect expired','upi id'],title:'Invalid / Expired UPI VPA',side:'cust',esc:'inform',sev:'low',
+   cause:"Wrong UPI ID, or the collect request expired before approval.",
+   action:"Customer re-checks the UPI ID or approves faster; offer UPI intent/QR.",
+   reply:"This UPI payment failed because the VPA was invalid or the collect request expired. Please ask the customer to re-check their UPI ID or use the UPI app (intent)/QR flow, which is faster to approve."},
+  {k:['timeout','timed out','pending','stuck','no response'],title:'Timeout / Stuck Pending',side:'psp',esc:'do',sev:'high',
+   cause:"No final response from the bank/PSP in time; order left pending and money may be debited.",
+   action:"Run a status/enquiry before marking failed. If debited-but-unconfirmed it auto-reconciles/refunds. Prevent double payment.",
+   reply:"This transaction is pending with the bank/PSP — we've triggered a status check. If the amount was debited it will auto-reconcile (and refund if not captured) within the standard window; please ask the customer not to pay again meanwhile."},
+  {k:['signature mismatch','checksum','hash mismatch','invalid signature'],title:'Signature / Checksum Mismatch',side:'merch',esc:'merchant',sev:'high',
+   cause:"Request/response signature didn't match — wrong key, salt, hashing algo or field order (integration bug).",
+   action:"Merchant to verify secret key, hashing algorithm, field order and live-vs-test environment.",
+   reply:"The signature verification is failing — an integration configuration issue on the request. Please confirm the correct secret key, the documented hashing algorithm and field order, and the right (live/test) credentials. Happy to review a sample request."},
+  {k:['mid not active','mid not activated','41008','terminal not active','provisioning','not activated'],title:'MID Not Activated / Provisioning',side:'merch',esc:'psp',sev:'high',
+   cause:"The merchant account/terminal (MID) isn't activated on the gateway/bank — so EVERY transaction fails.",
+   action:"Escalate to PSP/acquirer ops to activate the MID. If all txns fail it's provisioning, not the customer.",
+   reply:"All transactions on this account are failing because the MID/terminal isn't fully activated on the acquirer side. We're escalating to the PSP to activate it and will confirm once live. No change needed from your integration."},
+  {k:['card not supported','unsupported card','diners','amex not','network not'],title:'Card Network Not Enabled',side:'merch',esc:'psp',sev:'med',
+   cause:"The card network (e.g. Diners/Amex) isn't enabled or routed for this merchant/PSP.",
+   action:"Enable the network with the PSP or route to a PSP that supports it (config/provisioning gap).",
+   reply:"This card network isn't currently enabled for your account on the PSP. We're getting it enabled/routed. Meanwhile customers can use another card network."},
+  {k:['risk','fraud','velocity','blocked by risk','declined by risk'],title:'Risk / Fraud Decline',side:'psp',esc:'inform',sev:'med',
+   cause:"The bank's or PSP's risk engine blocked the payment (pattern/velocity/blacklist).",
+   action:"Usually genuine risk control; customer verifies with their bank. Review rules if false positives recur.",
+   reply:"This payment was blocked by the bank/PSP risk engine — typically a genuine risk control. The customer may need to confirm with their bank and retry. If legitimate customers are blocked repeatedly, share examples and we'll review the rules."},
+  {k:['webhook not received','webhook','callback not received','notification not received'],title:'Webhook / Callback Not Received',side:'merch',esc:'merchant',sev:'high',
+   cause:"The webhook URL isn't configured/reachable, or was set after the payment happened.",
+   action:"Check the webhook URL is configured and publicly reachable; confirm it was set before the txn; check the delivery queue.",
+   reply:"The webhook wasn't delivered — please confirm the webhook URL is configured and publicly reachable (not localhost/behind auth), and set before these payments. We can re-trigger delivery for the affected orders once confirmed."},
+  {k:['refund failed','refund delayed','refund pending','refund not'],title:'Refund Failed / Delayed',side:'psp',esc:'inform',sev:'med',
+   cause:"Refund couldn't process (source txn state, merchant balance, or PSP delay).",
+   action:"Confirm original txn is captured/settled and balance available; retry or raise with the PSP; share T+n window.",
+   reply:"The refund is processing — refunds settle to the customer within the standard T+n window depending on their bank. We've confirmed the original payment is captured; if it exceeds the window we'll raise it with the PSP."},
+  {k:['bank down','netbanking down','bank page','issuer down','service unavailable'],title:'Bank / Netbanking Down',side:'psp',esc:'inform',sev:'med',
+   cause:"The bank's page/service was temporarily unavailable during the payment.",
+   action:"Transient bank-side outage; customer retries later or uses another bank/method.",
+   reply:"The customer's bank was temporarily unavailable during this payment. Please ask them to retry later or use another bank/method. This is a bank-side outage, not an integration issue."},
+  {k:['not eligible','bnpl','eligibility','emi not'],title:'BNPL / EMI Not Eligible',side:'cust',esc:'inform',sev:'low',
+   cause:"The lender's eligibility check rejected the customer — not a payment-debit failure.",
+   action:"Show other methods. Merchant-side only if it's a cap/config error (sub-merchant limit).",
+   reply:"The customer wasn't approved for this credit (BNPL/EMI) option by the lender's eligibility check. Please offer other payment methods. If a limit/config on your account is the cause, let us know and we'll check with the lender."},
+  {k:['duplicate','double charge','charged twice'],title:'Duplicate / Double Charge',side:'merch',esc:'do',sev:'high',
+   cause:"The same order was charged more than once (retry without idempotency, or double submit).",
+   action:"Identify the duplicate, refund it, add a unique order-id/idempotency key to prevent recurrence.",
+   reply:"We've identified a duplicate charge for this order. The extra payment will be refunded to the customer within the standard window. To prevent this, please ensure each attempt uses a unique order id / idempotency key."},
+];
+function classify(text){ const t=(text||'').toLowerCase(); let best=null,score=0;
+  for(const e of KB){ const s=e.k.reduce((n,w)=>n+(t.includes(w)?1:0),0); if(s>score){score=s;best=e;} } return best; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function inr(n){ return '₹'+(Math.round(n)).toLocaleString('en-IN'); }
+
+/* ========== artifact drafts ========== */
+function pspNote(g){ return `PSP ESCALATION — ${g.e.title}\n`+
+  `Affected: ${g.count} order(s)${g.topMerchant?` · merchant: ${g.topMerchant}`:''}${g.value?` · ${inr(g.value)} at risk`:''}\n`+
+  `Symptom: ${g.e.cause}\nRequest: ${g.e.action}\n`+
+  (g.ids.length?`Sample order ids: ${g.ids.join(', ')}\n`:'')+
+  (g.spike?`Note: spike detected around ${g.spike.hour}:00 — please check for an outage from that time.\n`:''); }
+function internalTicket(g){ const sevP={high:'P1',med:'P2',low:'P3'}[g.e.sev];
+  return `[${sevP}] ${g.e.title} — ${g.count} failed order(s)${g.topMerchant?` (${g.topMerchant})`:''}${g.value?` · ${inr(g.value)}`:''}\n`+
+  `Root cause: ${g.e.cause}\nSide: ${SIDE[g.e.side]} · Disposition: ${ESC_LABEL[g.e.esc]}\n`+
+  `Action: ${g.e.action}\n`+(g.ids.length?`Samples: ${g.ids.join(', ')}\n`:'')+
+  (g.spike?`Spike: ~${g.spike.hour}:00 (${g.spike.n}/${g.count} in that hour)\n`:''); }
+
+/* ========== ONE TICKET ========== */
+function exOne(){ document.getElementById('q').value='Order NIM1024 keeps failing — "Do not honour" on Card'; triageOne(); }
+function triageOne(){
+  const q=document.getElementById('q').value.trim(), out=document.getElementById('out'); if(!q){out.innerHTML='';return;}
+  const e=classify(q);
+  if(!e){ out.innerHTML=`<div class="card"><span class="pill unknown">Needs review</span><h3>No rule matched "${escapeHtml(q)}"</h3>
+    <p class="muted small">Use AI mode to classify and draft a reply.</p>
+    <button class="btn-ai" onclick="askAIOne('${escapeHtml(q).replace(/'/g,"\\'")}')"><span id="aib1">🤖 Classify &amp; draft with AI</span></button>
+    <div id="aiout1"></div></div>`; return; }
+  out.innerHTML=`<div class="card">
+    <span class="pill ${e.side}">${SIDE[e.side]}</span><span class="tag">${ESC_LABEL[e.esc]}</span><span class="tag">Severity: ${e.sev}</span>
+    <h3>${escapeHtml(e.title)}</h3>
+    <div class="kv"><b>Root cause</b>${escapeHtml(e.cause)}</div>
+    <div class="kv"><b>What to do</b>${escapeHtml(e.action)}</div>
+    <div class="kv"><b>Drafted merchant reply</b></div>
+    <div class="reply" id="reply1">${escapeHtml(e.reply)}</div>
+    <button class="copybtn" onclick="copyEl('reply1')">Copy reply</button>
+    <details style="margin-top:12px"><summary>🤖 Tailor this reply with AI (Claude)</summary>
+      <button class="btn-ai" style="margin-top:10px" onclick="askAIOne('${escapeHtml(q).replace(/'/g,"\\'")}')"><span id="aib1">Refine reply</span></button>
+      <div id="aiout1"></div></details></div>`;
+}
+
+/* ========== CSV ========== */
+function parseCSV(text){ const rows=[];let i=0,f='',row=[],qte=false;text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  while(i<text.length){const c=text[i];
+    if(qte){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else qte=false; } else f+=c; }
+    else { if(c==='"')qte=true; else if(c===',') {row.push(f);f='';} else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';} else f+=c; } i++; }
+  if(f.length||row.length){row.push(f);rows.push(row);} return rows.filter(r=>r.length&&!(r.length===1&&r[0].trim()==='')); }
+function toObjects(m){ if(!m.length)return{headers:[],rows:[]};const h=m[0].map(x=>x.trim());
+  const rows=m.slice(1).map(r=>{const o={};h.forEach((k,i)=>o[k]=(r[i]!==undefined?r[i]:'').trim());return o;});return{headers:h,rows}; }
+function detect(h,c){const low=h.map(x=>x.toLowerCase());for(const x of c){const i=low.indexOf(x);if(i>=0)return h[i];}for(let i=0;i<low.length;i++){if(c.some(x=>low[i].includes(x)))return h[i];}return '';}
+function hourOf(v){ const m=String(v||'').match(/(\d{1,2}):(\d{2})/); return m?parseInt(m[1],10):null; }
+
+function loadFile(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>triageBatch(r.result);r.readAsText(f);}
+function loadPaste(){const t=document.getElementById('paste').value.trim();if(t)triageBatch(t);}
+function clearBatch(){document.getElementById('out').innerHTML='';document.getElementById('file').value='';}
+
+/* ========== BATCH TRIAGE (advanced) ========== */
+let LAST_TRIAGE='';
+function triageBatch(text){
+  const {headers,rows}=toObjects(parseCSV(text)); const out=document.getElementById('out');
+  if(!rows.length){ out.innerHTML=`<div class="card err">No rows found.</div>`; return; }
+  const rCol=detect(headers,['failure_reason','reason','error','error_message','message','remark','decline_reason','status']);
+  const idCol=detect(headers,['order_id','order id','id','txn_id','reference']);
+  const mCol=detect(headers,['merchant','sub_merchant','submerchant','merchant_name','mid']);
+  const aCol=detect(headers,['amount','order_amount','amt','value']);
+  const tCol=detect(headers,['created_at','timestamp','time','datetime','date']);
+
+  const groups={};
+  for(const r of rows){
+    const txt=rCol?r[rCol]:Object.values(r).join(' ');
+    const e=classify(txt); const key=e?e.title:'Unclassified — needs review';
+    const g=groups[key]=groups[key]||{e,count:0,value:0,merchants:{},ids:[],hours:[]};
+    g.count++; if(aCol&&!isNaN(parseFloat(r[aCol]))) g.value+=parseFloat(r[aCol]);
+    if(mCol&&r[mCol]) g.merchants[r[mCol]]=(g.merchants[r[mCol]]||0)+1;
+    if(idCol&&r[idCol]&&g.ids.length<6) g.ids.push(r[idCol]);
+    if(tCol){ const h=hourOf(r[tCol]); if(h!=null) g.hours.push(h); }
+  }
+  // enrich each group: top merchant, spike, priority
+  const arr=Object.entries(groups).map(([key,g])=>{
+    const tm=Object.entries(g.merchants).sort((a,b)=>b[1]-a[1])[0]; g.topMerchant=tm?`${tm[0]} (${tm[1]})`:'';
+    // spike: a single hour holds >=60% of a cluster of >=3
+    g.spike=null;
+    if(g.hours.length>=3){ const t={}; g.hours.forEach(h=>t[h]=(t[h]||0)+1); const top=Object.entries(t).sort((a,b)=>b[1]-a[1])[0];
+      if(top && top[1]/g.hours.length>=0.6) g.spike={hour:top[0],n:top[1]}; }
+    const sevW=g.e?SEVW[g.e.sev]:2; const impact=sevW*g.count + (g.spike?4:0);
+    g.priority = impact>=9 ? 1 : impact>=4 ? 2 : 3;
+    if(g.spike && sevW>=2) g.priority=1;
+    return [key,g,impact];
+  }).sort((a,b)=> b[1].priority===a[1].priority ? b[2]-a[2] : a[1].priority-b[1].priority);
+
+  const total=rows.length;
+  const classified=arr.filter(([k,g])=>g.e).reduce((s,[k,g])=>s+g.count,0);
+  const review=arr.filter(([k,g])=>!g.e).reduce((s,[k,g])=>s+g.count,0);
+  const escCount=arr.filter(([k,g])=>g.e&&g.e.esc!=='inform').reduce((s,[k,g])=>s+g.count,0);
+  const valueRisk=arr.reduce((s,[k,g])=>s+g.value,0);
+  const spikes=arr.filter(([k,g])=>g.spike);
+
+  LAST_TRIAGE=`Day triage: ${total} failed orders, ${classified} auto-classified, ${review} need review, ${inr(valueRisk)} at risk.\n`
+    + arr.map(([k,g])=>`P${g.priority} ${k} ×${g.count}${g.value?` (${inr(g.value)})`:''} — ${g.e?SIDE[g.e.side]+', '+ESC_LABEL[g.e.esc]:'unclassified'}${g.topMerchant?` top:${g.topMerchant}`:''}${g.spike?` SPIKE~${g.spike.hour}:00`:''}`).join('\n');
+
+  const alerts=spikes.map(([k,g])=>`<div class="alert">⚠️ <b>Possible outage:</b> <b>${escapeHtml(k)}</b> spiked around <b>${g.spike.hour}:00</b> (${g.spike.n} of ${g.count} in that hour)${g.topMerchant?` · mostly ${escapeHtml(g.topMerchant)}`:''}. ${g.e&&g.e.esc==='psp'?'Escalate to the PSP now.':'Investigate immediately.'}</div>`).join('');
+
+  const prPill=p=>`<span class="pill p${p}">P${p}</span>`;
+  const tableRows=arr.map(([k,g])=>`<tr>
+    <td>${prPill(g.priority)}</td>
+    <td>${escapeHtml(k)}${g.spike?' <span class="tag" style="color:#fbbf24">spike</span>':''}</td>
+    <td class="num">${g.count}</td>
+    <td class="num">${g.value?inr(g.value):'—'}</td>
+    <td>${g.e?`<span class="pill ${g.e.side}">${SIDE[g.e.side].split(' ')[0]}</span>`:'<span class="pill unknown">?</span>'}</td>
+    <td class="small">${g.e?escapeHtml(ESC_LABEL[g.e.esc]):'Manual review'}${g.topMerchant?`<br><span class="muted">top: ${escapeHtml(g.topMerchant)}</span>`:''}</td>
+  </tr>`).join('');
+
+  // per-merchant rollup
+  const mer={};
+  for(const [k,g] of arr){ for(const [m,c] of Object.entries(g.merchants)){ (mer[m]=mer[m]||{count:0,issues:{}}); mer[m].count+=c; mer[m].issues[k]=(mer[m].issues[k]||0)+c; } }
+  const merRows=Object.entries(mer).sort((a,b)=>b[1].count-a[1].count).slice(0,10).map(([m,o])=>{
+    const dom=Object.entries(o.issues).sort((a,b)=>b[1]-a[1])[0];
+    return `<tr><td>${escapeHtml(m)}</td><td class="num">${o.count}</td><td class="small">${escapeHtml(dom?dom[0]:'')}</td></tr>`; }).join('');
+
+  // action buckets
+  const doB=arr.filter(([k,g])=>g.e&&g.e.esc==='do').map(([k,g])=>`<li>${prPill(g.priority)}<b>${escapeHtml(k)}</b> × ${g.count}${g.value?` (${inr(g.value)})`:''} — ${escapeHtml(g.e.action)}</li>`).join('');
+  const escB=arr.filter(([k,g])=>g.e&&(g.e.esc==='psp'||g.e.esc==='merchant')).map(([k,g])=>`<li>${prPill(g.priority)}<b>${escapeHtml(k)}</b> × ${g.count} → ${escapeHtml(ESC_LABEL[g.e.esc])}${g.topMerchant?` · ${escapeHtml(g.topMerchant)}`:''}</li>`).join('');
+  const infoB=arr.filter(([k,g])=>g.e&&g.e.esc==='inform').map(([k,g])=>`<li><b>${escapeHtml(k)}</b> × ${g.count} — customer-side, reply ready</li>`).join('');
+
+  // per-cluster drafts (actionable only)
+  const draftBlocks=arr.filter(([k,g])=>g.e&&g.e.esc!=='inform').map(([k,g],i)=>{
+    const id='d'+i;
+    const reply=g.e.reply, psp=pspNote(g), tkt=internalTicket(g);
+    window['__draft_'+id]={reply, psp, tkt};
+    return `<details style="margin-top:8px"><summary>✍️ Drafts — ${escapeHtml(k)} (${g.count})</summary>
+      <div class="art">
+        <span class="active" onclick="showDraft('${id}','reply',this)">Merchant reply</span>
+        <span onclick="showDraft('${id}','psp',this)">PSP escalation</span>
+        <span onclick="showDraft('${id}','tkt',this)">Internal ticket</span>
+      </div>
+      <div class="reply" id="box_${id}">${escapeHtml(reply)}</div>
+      <button class="copybtn" onclick="copyEl('box_${id}')">Copy</button></details>`;
+  }).join('');
+
+  out.innerHTML=`<div class="card">
+    <div class="tiles">
+      <div class="tile"><div class="n">${total}</div><div class="l">Tickets</div></div>
+      <div class="tile green"><div class="n">${classified}</div><div class="l">Auto-classified</div></div>
+      <div class="tile amber"><div class="n">${escCount}</div><div class="l">Need escalation</div></div>
+      <div class="tile red"><div class="n" style="font-size:18px">${inr(valueRisk)}</div><div class="l">At risk</div></div>
+      <div class="tile ${spikes.length?'red':''}"><div class="n">${spikes.length}</div><div class="l">Spikes</div></div>
+    </div>
+    ${alerts}
+    <h3>Priority queue — what to work first</h3>
+    <table><thead><tr><th>Pri</th><th>Issue</th><th class="num">Count</th><th class="num">₹</th><th>Side</th><th>Disposition</th></tr></thead><tbody>${tableRows}</tbody></table>
+
+    ${merRows?`<h3 style="margin-top:16px">Most-impacted merchants</h3>
+    <table><thead><tr><th>Merchant</th><th class="num">Failed</th><th>Dominant issue</th></tr></thead><tbody>${merRows}</tbody></table>`:''}
+
+    <h3 style="margin-top:16px">Action plan</h3>
+    ${doB?`<div class="bucket do"><h4>🔴 Do now</h4><ul>${doB}</ul></div>`:''}
+    ${escB?`<div class="bucket esc"><h4>🟠 Escalate</h4><ul>${escB}</ul></div>`:''}
+    ${infoB?`<div class="bucket inform"><h4>🟢 Inform (no fix needed)</h4><ul>${infoB}</ul></div>`:''}
+
+    ${draftBlocks?`<h3 style="margin-top:16px">Auto-drafted responses</h3>${draftBlocks}`:''}
+
+    <details style="margin-top:14px"><summary>📋 End-of-day summary + export</summary>
+      <div class="reply" id="daySummary">${escapeHtml(LAST_TRIAGE)}</div>
+      <button class="copybtn" onclick="copyEl('daySummary')">Copy summary</button>
+      <button class="copybtn" onclick="exportQueue()">⬇ Export priority queue (CSV)</button></details>
+
+    <details style="margin-top:10px"><summary>🤖 AI triage review &amp; escalation notes (Claude)</summary>
+      <button class="btn-ai" style="margin-top:10px" onclick="askAIBatch()"><span id="aibB">Review the day</span></button>
+      <div id="aioutB"></div></details>
+  </div>`;
+  window.__QUEUE=arr;
+}
+function showDraft(id,which,el){ const d=window['__draft_'+id]; if(!d)return;
+  document.getElementById('box_'+id).textContent = which==='reply'?d.reply:which==='psp'?d.psp:d.tkt;
+  el.parentNode.querySelectorAll('span').forEach(s=>s.className=''); el.className='active'; }
+function exportQueue(){
+  const rows=[['priority','issue','count','value','side','disposition','top_merchant','spike']];
+  for(const [k,g] of (window.__QUEUE||[])) rows.push(['P'+g.priority,k,g.count,Math.round(g.value)||'',g.e?SIDE[g.e.side]:'',g.e?ESC_LABEL[g.e.esc]:'review',g.topMerchant||'',g.spike?g.spike.hour+':00':'']);
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='triage_priority_queue.csv'; a.click();
+}
+function copyEl(id){ const t=document.getElementById(id).innerText; navigator.clipboard&&navigator.clipboard.writeText(t); }
+
+/* ========== SAMPLE (fake, with a planted outage spike) ========== */
+const SAMPLE=`order_id,merchant,amount,failure_reason,created_at
+NIM2001,BlueCart,899,Insufficient funds,2026-02-10 09:14
+NIM2002,ShopEasy,640,Do not honour,2026-02-10 09:41
+NIM2003,BlueCart,1500,Insufficient funds,2026-02-10 10:05
+NIM2004,ShopEasy,999,3DS authentication failed,2026-02-10 10:52
+NIM2005,Globex,3200,signature mismatch,2026-02-10 11:20
+NIM2006,BlueCart,500,Invalid VPA,2026-02-10 11:48
+NIM2007,ShopEasy,2750,Transaction timed out / pending,2026-02-10 12:30
+NIM2008,Globex,1800,signature mismatch,2026-02-10 12:55
+NIM2009,Acme Retail,4999,MID not activated,2026-02-10 14:11
+NIM2010,Acme Retail,1299,MID not activated,2026-02-10 14:13
+NIM2011,Acme Retail,750,Terminal not active,2026-02-10 14:15
+NIM2012,Acme Retail,2100,MID not activated,2026-02-10 14:17
+NIM2013,Acme Retail,1800,MID not activated,2026-02-10 14:19
+NIM2014,BlueCart,430,Insufficient funds,2026-02-10 15:22
+NIM2015,ShopEasy,1200,webhook not received,2026-02-10 15:40
+NIM2016,BlueCart,980,Do not honour,2026-02-10 16:03`;
+function loadSample(){ triageBatch(SAMPLE); }
+
+/* ========== AI ========== */
+function saveKey(){ try{ localStorage.setItem('anthropic_key', document.getElementById('key').value); }catch(e){} }
+window.addEventListener('load', ()=>{ try{ const k=localStorage.getItem('anthropic_key'); if(k) document.getElementById('key').value=k; }catch(e){} });
+async function callClaude(prompt, elId){
+  const key=document.getElementById('key').value.trim(), model=document.getElementById('model').value.trim()||'claude-haiku-5-5';
+  const el=document.getElementById(elId); if(!el) return;
+  if(!key){ el.innerHTML=`<div class="err">Add your Anthropic API key in "AI mode settings" below.</div>`; return; }
+  el.innerHTML=`<div class="ai-box"><span class="spinner"></span>Asking Claude...</div>`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model,max_tokens:500,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    if(!res.ok){ el.innerHTML=`<div class="err">API error (${res.status}): ${escapeHtml((data.error&&data.error.message)||JSON.stringify(data))}</div>`; }
+    else{ const t=(data.content&&data.content[0]&&data.content[0].text)||'No response.'; el.innerHTML=`<div class="ai-box">${escapeHtml(t)}</div>`; }
+  }catch(err){ el.innerHTML=`<div class="err">Request failed: ${escapeHtml(err.message)}.</div>`; }
+}
+function askAIOne(q){ callClaude(`You are a senior payments support engineer. A merchant ticket says: "${q}". Reply with: 1) likely root cause, 2) whose side (customer/merchant-integration/bank-PSP), 3) a polished merchant reply they can send as-is. Under 130 words.`, 'aiout1'); }
+function askAIBatch(){ callClaude(`You are a senior payments support lead reviewing today's auto-triaged failed-order tickets (no customer data shared):\n\n${LAST_TRIAGE}\n\nGive: 1) the P1 to handle first and why, 2) what to escalate to the PSP vs fix with the merchant vs just inform, 3) call out any spike/outage and the likely cause. Under 160 words, bullet points.`, 'aioutB'); }
+</script>
+</body>
+</html>
